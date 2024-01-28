@@ -8,9 +8,9 @@ import (
 
 func main() {
 	ctx := context.Background()
-	ctxWithCancel, cancel := context.WithCancel(ctx)
+	ctxWithDeadline, cancel := context.WithDeadline(ctx, time.Now().Add(50*time.Second))
 	now := time.Now()
 	cancel()
-	<-ctxWithCancel.Done()
-	fmt.Println("timer finished", time.Since(now))
+	<-ctxWithDeadline.Done()
+	fmt.Println("timer canceled", time.Since(now))
 }
