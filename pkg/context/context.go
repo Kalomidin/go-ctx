@@ -173,6 +173,8 @@ func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) {
 	}
 
 	cancelCtx := &cancelCtx{}
+	withCancel(parent, cancelCtx)
+
 	timer := time.AfterFunc(time.Until(d), func() {
 		cancelCtx.Cancel(fmt.Errorf("context deadline exceeded"))
 	})
@@ -181,8 +183,6 @@ func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) {
 		timer:     timer,
 		cancelCtx: cancelCtx,
 	}
-
-	withCancel(parent, cancelCtx)
 
 	return timerCtx, func() {
 		timerCtx.Cancel(fmt.Errorf("context canceled"))
@@ -230,9 +230,7 @@ func withCancel(parent Context, cancelCtx *cancelCtx) {
 
 	// wait for done to cancel the child
 	go func() {
-		if d := parent.Done(); d == nil {
-			<-cancelCtx.Done()
-		} else {
+		if d := parent.Done(); d != nil {
 			select {
 			case <-parent.Done():
 				cancelCtx.Cancel(parent.Err())
