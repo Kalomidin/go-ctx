@@ -1,6 +1,9 @@
 package context
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // A Context carries a deadline, a cancellation signal, and other values across
 // API boundaries.
@@ -100,6 +103,17 @@ type Context interface {
 	Value(key any) any
 }
 
+type canceler interface {
+	Cancel(err error)
+	Done() <-chan struct{}
+}
+
+type children interface {
+	Add(child canceler)
+	Delete(child canceler)
+	Get() map[canceler]struct{}
+}
+
 // An emptyCtx is never canceled, has no values, and has no deadline.
 // It is the common base of backgroundCtx and todoCtx.
 type emptyCtx struct{}
@@ -150,7 +164,29 @@ type CancelFunc func()
 // Canceling this context releases resources associated with it, so code should
 // call cancel as soon as the operations running in this [Context] complete.
 func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) {
-	return nil, nil
+	if parent == nil {
+		panic("cannot create context from empty parent")
+	}
+
+	if d.Before(time.Now()) {
+		return WithCancel(parent)
+	}
+
+	cancelCtx := &cancelCtx{}
+	timer := time.AfterFunc(time.Until(d), func() {
+		cancelCtx.Cancel(fmt.Errorf("context deadline exceeded"))
+	})
+	timerCtx := &timerCtx{
+		deadline:  d,
+		timer:     timer,
+		cancelCtx: cancelCtx,
+	}
+
+	withCancel(parent, cancelCtx)
+
+	return timerCtx, func() {
+		timerCtx.Cancel(fmt.Errorf("context canceled"))
+	}
 }
 
 // WithTimeout returns WithDeadline(parent, time.Now().Add(timeout)).
@@ -174,5 +210,34 @@ func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc) {
 // Canceling this context releases resources associated with it, so code should
 // call cancel as soon as the operations running in this Context complete.
 func WithCancel(parent Context) (ctx Context, cancel CancelFunc) {
-	return nil, nil
+	if parent == nil {
+		panic("cannot create context from empty parent")
+	}
+
+	cancelCtx := &cancelCtx{}
+	withCancel(parent, cancelCtx)
+
+	return cancelCtx, func() {
+		cancelCtx.Cancel(fmt.Errorf("context canceled"))
+	}
+}
+
+func withCancel(parent Context, cancelCtx *cancelCtx) {
+	// add a cancelCtx to the parent
+	if children, ok := parent.(children); ok {
+		children.Add(cancelCtx)
+	}
+
+	// wait for done to cancel the child
+	go func() {
+		if d := parent.Done(); d == nil {
+			<-cancelCtx.Done()
+		} else {
+			select {
+			case <-parent.Done():
+				cancelCtx.Cancel(parent.Err())
+			case <-cancelCtx.Done():
+			}
+		}
+	}()
 }

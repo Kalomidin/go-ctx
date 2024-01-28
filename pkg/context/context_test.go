@@ -61,3 +61,5 @@ func TestWithParentCancel(t *testing.T) {
 
 	assert.LessOrEqual(t, time.Since(now), 1*time.Second)
 }
+
+// todo: test sharing ctx between goroutines
