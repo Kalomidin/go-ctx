@@ -228,7 +228,7 @@ func withCancel(parent Context, cancelCtx *cancelCtx) {
 		children.Add(cancelCtx)
 	}
 
-	// wait for done to cancel the child
+	// cancel the child if the parent is done before the child
 	go func() {
 		if d := parent.Done(); d != nil {
 			select {
