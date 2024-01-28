@@ -11,7 +11,7 @@ type cancelCtx struct {
 
 	done     atomic.Value
 	err      error
-	children map[canceler]struct{}
+	children map[canceler]bool
 }
 
 func (c *cancelCtx) Done() <-chan struct{} {
@@ -71,9 +71,9 @@ func (c *cancelCtx) Add(child canceler) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.children == nil {
-		c.children = make(map[canceler]struct{})
+		c.children = make(map[canceler]bool)
 	}
-	c.children[child] = struct{}{}
+	c.children[child] = true
 }
 
 func (c *cancelCtx) Delete(child canceler) {
@@ -82,7 +82,7 @@ func (c *cancelCtx) Delete(child canceler) {
 	delete(c.children, child)
 }
 
-func (c *cancelCtx) Get() map[canceler]struct{} {
+func (c *cancelCtx) Get() map[canceler]bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.children

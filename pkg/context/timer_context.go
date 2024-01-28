@@ -48,6 +48,6 @@ func (c *timerCtx) Delete(child canceler) {
 	c.cancelCtx.Delete(child)
 }
 
-func (c *timerCtx) Get() map[canceler]struct{} {
+func (c *timerCtx) Get() map[canceler]bool {
 	return c.cancelCtx.Get()
 }
